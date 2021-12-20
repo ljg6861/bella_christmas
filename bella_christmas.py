@@ -11,6 +11,7 @@ import argparse
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
+import os
 
 # LED strip configuration:
 LED_COUNT      = 16      # Number of LED pixels.
@@ -31,6 +32,23 @@ def colorWipe(strip, color, wait_ms=50):
         strip.setPixelColor(i, color)
         strip.show()
         time.sleep(wait_ms/1000.0)
+
+def handleLighting(strip, notoType):
+    for i in range(strip.numPixels()):
+        if notoType == 'attention':
+            strip.setPixelColor(i, Color(127, 255, 0))
+        elif notoType == 'miss':
+            strip.setPixelColor(i, Color(186, 85, 211))
+        elif notoType == 'mad':
+            strip.setPixelColor(i, Color(255, 0, 0))
+        elif notoType == 'sad':
+            strip.setPixelColor(i, Color(0, 191, 255))
+        else:
+            strip.setPixelColor(i, Color(255, 20, 147))
+    time.sleep(2)
+    colorWipe(strip, Color(0, 0, 0), 10)
+    time.sleep(1)
+
 
 def theaterChase(strip, color, wait_ms=50, iterations=10):
     """Movie theater light style chaser animation."""
@@ -93,7 +111,7 @@ if __name__ == '__main__':
     # Intialize the library (must be called once before other functions).
     strip.begin()
     
-    cred = credentials.ApplicationDefault()
+    cred = credentials.Certificate('cert.json')
     firebase_admin.initialize_app(cred, {
         'projectId' : 'isabellachristmas-474d3'
     })
@@ -105,7 +123,11 @@ if __name__ == '__main__':
     def on_snapshot(col_snapshot, changes, read_time):
         print('received notification')
         for change in changes:
-            print(change)
+            if change.type.name == 'ADDED':
+                print(change.document.to_dict()['type'])
+                for i in range(4):
+                    handleLighting(strip, change.document.to_dict()['type'])
+    
 
     print ('Press Ctrl-C to quit.')
     if not args.clear:
@@ -113,8 +135,10 @@ if __name__ == '__main__':
 
     try:
 
+        
+        query_watch = col_query.on_snapshot(on_snapshot)
         while True:
-            query_watch = col_query.on_snapshot(on_snapshot)
+            time.sleep(1)
             
     except KeyboardInterrupt:
         if args.clear:
